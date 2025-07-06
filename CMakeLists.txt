@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(openssl_wasm_crypto VERSION 1.0.0)
 
-# Ensure we're using Emscripten - check for the toolchain file instead
-if(NOT CMAKE_TOOLCHAIN_FILE MATCHES "Emscripten.cmake")
+# Ensure we're using Emscripten
+if(NOT EMSCRIPTEN AND NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
     message(FATAL_ERROR "This project must be built with Emscripten. Please use 'emcmake cmake ...'")
 endif()
 
@@ -25,17 +25,17 @@ file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR})
 file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR}/lib)
 file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR}/include)
 
-# Build OpenSSL for WebAssembly
-include(ExternalProject)
-ExternalProject_Add(openssl_build
-    SOURCE_DIR ${OPENSSL_SOURCE_DIR}
-    BINARY_DIR ${OPENSSL_BUILD_DIR}
-    CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env
+# Build OpenSSL for WebAssembly using custom commands
+add_custom_command(
+    OUTPUT ${OPENSSL_INSTALL_DIR}/lib/libssl.a ${OPENSSL_INSTALL_DIR}/lib/libcrypto.a
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${OPENSSL_SOURCE_DIR} ${OPENSSL_BUILD_DIR}
+    COMMAND ${CMAKE_COMMAND} -E chdir ${OPENSSL_BUILD_DIR}
+        ${CMAKE_COMMAND} -E env
         CC=${CMAKE_C_COMPILER}
         CXX=${CMAKE_CXX_COMPILER}
         AR=${CMAKE_AR}
         RANLIB=${CMAKE_RANLIB}
-        ${OPENSSL_SOURCE_DIR}/Configure
+        perl Configure
         linux-generic32
         no-shared
         no-dso
@@ -44,23 +44,28 @@ ExternalProject_Add(openssl_build
         no-ui-console
         no-tests
         no-asm
+        no-threads
         --prefix=${OPENSSL_INSTALL_DIR}
         --openssldir=${OPENSSL_INSTALL_DIR}
-    BUILD_COMMAND emmake make -j4
-    INSTALL_COMMAND emmake make install_sw
-    BUILD_BYPRODUCTS 
-        ${OPENSSL_INSTALL_DIR}/lib/libssl.a
-        ${OPENSSL_INSTALL_DIR}/lib/libcrypto.a
-        ${OPENSSL_INSTALL_DIR}/include/openssl/opensslconf.h
+    COMMAND ${CMAKE_COMMAND} -E chdir ${OPENSSL_BUILD_DIR} emmake make -j1
+    COMMAND ${CMAKE_COMMAND} -E chdir ${OPENSSL_BUILD_DIR} emmake make install_sw
+    DEPENDS ${OPENSSL_SOURCE_DIR}/Configure
+    COMMENT "Building OpenSSL for WebAssembly"
+    VERBATIM
 )
 
-# Main executable - define it first
+# Create a custom target for OpenSSL
+add_custom_target(openssl_build_target
+    DEPENDS ${OPENSSL_INSTALL_DIR}/lib/libssl.a ${OPENSSL_INSTALL_DIR}/lib/libcrypto.a
+)
+
+# Main executable
 add_executable(${PROJECT_NAME} src/main.cpp)
 
 # Add dependency on OpenSSL build
-add_dependencies(${PROJECT_NAME} openssl_build)
+add_dependencies(${PROJECT_NAME} openssl_build_target)
 
-# Set include directories and link libraries after the target is created
+# Set include directories and link libraries
 target_include_directories(${PROJECT_NAME} PRIVATE ${OPENSSL_INSTALL_DIR}/include)
 target_link_libraries(${PROJECT_NAME} 
     ${OPENSSL_INSTALL_DIR}/lib/libssl.a
