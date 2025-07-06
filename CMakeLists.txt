@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(openssl_wasm_crypto VERSION 1.0.0)
 
-# Ensure we're using Emscripten
-if(NOT EMSCRIPTEN)
-    message(FATAL_ERROR "This project must be built with Emscripten. Please use emcmake cmake ...")
+# Ensure we're using Emscripten - check for the toolchain file instead
+if(NOT CMAKE_TOOLCHAIN_FILE MATCHES "Emscripten.cmake")
+    message(FATAL_ERROR "This project must be built with Emscripten. Please use 'emcmake cmake ...'")
 endif()
 
 # Set C++ standard
@@ -17,8 +17,13 @@ set(OPENSSL_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/openssl_install")
 
 # Check if OpenSSL source exists
 if(NOT EXISTS "${OPENSSL_SOURCE_DIR}/Configure")
-    message(FATAL_ERROR "OpenSSL source not found at ${OPENSSL_SOURCE_DIR}. Please run the setup script first.")
+    message(FATAL_ERROR "OpenSSL source not found at ${OPENSSL_SOURCE_DIR}. Please run setup_openssl.bat first.")
 endif()
+
+# Create install directory early
+file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR})
+file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR}/lib)
+file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR}/include)
 
 # Build OpenSSL for WebAssembly
 include(ExternalProject)
@@ -38,10 +43,11 @@ ExternalProject_Add(openssl_build
         no-unit-test
         no-ui-console
         no-tests
+        no-asm
         --prefix=${OPENSSL_INSTALL_DIR}
         --openssldir=${OPENSSL_INSTALL_DIR}
-    BUILD_COMMAND make -j4
-    INSTALL_COMMAND make install_sw
+    BUILD_COMMAND emmake make -j4
+    INSTALL_COMMAND emmake make install_sw
     BUILD_BYPRODUCTS 
         ${OPENSSL_INSTALL_DIR}/lib/libssl.a
         ${OPENSSL_INSTALL_DIR}/lib/libcrypto.a

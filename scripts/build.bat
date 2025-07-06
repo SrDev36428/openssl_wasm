@@ -9,7 +9,25 @@ where emcc >nul 2>&1
 if %errorlevel% neq 0 (
     echo Error: Emscripten not found in PATH
     echo Please install and activate Emscripten SDK first
-    echo Visit: https://emscripten.org/docs/getting_started/downloads.html
+    echo.
+    echo To activate Emscripten:
+    echo 1. Open Developer Command Prompt for VS
+    echo 2. Navigate to your emsdk directory
+    echo 3. Run: emsdk activate latest
+    echo 4. Run this script again
+    echo.
+    pause
+    exit /b 1
+)
+
+:: Verify Emscripten environment
+echo Checking Emscripten environment...
+echo EMSCRIPTEN: %EMSCRIPTEN%
+echo EMSDK: %EMSDK%
+
+if "%EMSCRIPTEN%"=="" (
+    echo Error: EMSCRIPTEN environment variable not set
+    echo Please run 'emsdk activate latest' first
     pause
     exit /b 1
 )
@@ -44,54 +62,98 @@ mkdir "%DIST_DIR%"
 :: Configure with CMake
 echo Configuring with CMake...
 cd /d "%BUILD_DIR%"
+
+:: Use emcmake to ensure proper Emscripten environment
 emcmake cmake .. -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles"
 
 if %errorlevel% neq 0 (
-    echo CMake configuration failed
+    echo.
+    echo CMake configuration failed!
+    echo.
+    echo Common solutions:
+    echo 1. Make sure you're using Developer Command Prompt for VS
+    echo 2. Ensure Emscripten is properly activated: emsdk activate latest
+    echo 3. Check that OpenSSL source was downloaded: scripts\setup_openssl.bat
+    echo.
     pause
     exit /b 1
 )
 
 :: Build the project
+echo.
 echo Building project...
-echo This may take several minutes as OpenSSL is being compiled...
+echo This may take several minutes as OpenSSL is being compiled from source...
+echo.
+
+:: Use emmake to ensure proper Emscripten build environment
 emmake make -j4
 
 if %errorlevel% neq 0 (
-    echo Build failed
+    echo.
+    echo Build failed!
+    echo Check the error messages above for details.
+    echo.
     pause
     exit /b 1
 )
 
 :: Copy output files to dist directory
+echo.
 echo Copying output files...
-if exist "openssl_crypto.wasm" copy "openssl_crypto.wasm" "%DIST_DIR%\" >nul
-if exist "openssl_crypto.js" copy "openssl_crypto.js" "%DIST_DIR%\" >nul
-if exist "openssl_crypto.html" copy "openssl_crypto.html" "%DIST_DIR%\index.html" >nul
+if exist "openssl_crypto.wasm" (
+    copy "openssl_crypto.wasm" "%DIST_DIR%\" >nul
+    echo ✓ Copied openssl_crypto.wasm
+) else (
+    echo ✗ openssl_crypto.wasm not found
+)
 
-:: Verify files were created
+if exist "openssl_crypto.js" (
+    copy "openssl_crypto.js" "%DIST_DIR%\" >nul
+    echo ✓ Copied openssl_crypto.js
+) else (
+    echo ✗ openssl_crypto.js not found
+)
+
+if exist "openssl_crypto.html" (
+    copy "openssl_crypto.html" "%DIST_DIR%\index.html" >nul
+    echo ✓ Copied index.html
+) else (
+    echo ✗ openssl_crypto.html not found
+)
+
+:: Verify critical files were created
 if not exist "%DIST_DIR%\openssl_crypto.wasm" (
-    echo Error: WASM file was not created
-    echo Check build output above for errors
+    echo.
+    echo Error: WASM file was not created!
+    echo The build may have failed. Check the output above for errors.
     pause
     exit /b 1
 )
 
 if not exist "%DIST_DIR%\openssl_crypto.js" (
-    echo Error: JS file was not created
-    echo Check build output above for errors
+    echo.
+    echo Error: JavaScript file was not created!
+    echo The build may have failed. Check the output above for errors.
     pause
     exit /b 1
 )
 
+echo.
+echo ========================================
 echo Build completed successfully!
-echo Output files are in: %DIST_DIR%
+echo ========================================
+echo.
+echo Output directory: %DIST_DIR%
 echo.
 echo Files created:
-dir "%DIST_DIR%" /b
+for %%f in ("%DIST_DIR%\*") do echo   %%~nxf
 echo.
 echo To test the demo:
-echo 1. Run: scripts\serve.bat
-echo 2. Open http://localhost:8000 in your browser
+echo   1. Run: scripts\serve.bat
+echo   2. Open http://localhost:8000 in your browser
+echo.
+echo Or manually start a web server in the dist directory:
+echo   cd dist
+echo   python -m http.server 8000
 echo.
 pause
