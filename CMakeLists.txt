@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(openssl_wasm_crypto VERSION 1.0.0)
 
-# Ensure we're using Emscripten
-if(NOT EMSCRIPTEN AND NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
-    message(FATAL_ERROR "This project must be built with Emscripten. Please use 'emcmake cmake ...'")
+# Ensure we're using Emscripten - Updated detection logic
+if(NOT EMSCRIPTEN)
+    message(FATAL_ERROR "This project must be built with Emscripten. Please use 'emcmake cmake ...' or run activate_and_build.bat")
 endif()
 
 # Set C++ standard

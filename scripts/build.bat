@@ -45,6 +45,9 @@ if %errorlevel% neq 0 (
 :: Display Emscripten info
 echo Emscripten detected:
 emcc --version | findstr "emcc"
+echo Environment variables:
+echo EMSCRIPTEN: %EMSCRIPTEN%
+echo EMSDK: %EMSDK%
 echo.
 
 :: Set up directories
@@ -88,9 +91,12 @@ mkdir "%DIST_DIR%" 2>nul
 echo Configuring with emcmake...
 cd /d "%BUILD_DIR%"
 
-:: Configure with emcmake
-echo Attempting configuration...
-emcmake cmake .. -DCMAKE_BUILD_TYPE=Release
+:: Set additional environment variables to ensure Emscripten detection
+set CMAKE_TOOLCHAIN_FILE=%EMSCRIPTEN%\cmake\Modules\Platform\Emscripten.cmake
+
+:: Configure with emcmake and explicit toolchain
+echo Attempting configuration with explicit Emscripten toolchain...
+emcmake cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="%CMAKE_TOOLCHAIN_FILE%"
 
 if %errorlevel% neq 0 (
     echo.
@@ -99,14 +105,21 @@ if %errorlevel% neq 0 (
     echo Debug information:
     echo EMSCRIPTEN: %EMSCRIPTEN%
     echo EMSDK: %EMSDK%
+    echo CMAKE_TOOLCHAIN_FILE: %CMAKE_TOOLCHAIN_FILE%
     echo.
     echo Emscripten tools found:
     where emcc 2>nul || echo emcc: NOT FOUND
     where em++ 2>nul || echo em++: NOT FOUND
     where emcmake 2>nul || echo emcmake: NOT FOUND
     echo.
-    pause
-    exit /b 1
+    echo Trying alternative configuration...
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="%CMAKE_TOOLCHAIN_FILE%" -DEMSCRIPTEN=1
+    
+    if %errorlevel% neq 0 (
+        echo Alternative configuration also failed!
+        pause
+        exit /b 1
+    )
 )
 
 :: Build the project
