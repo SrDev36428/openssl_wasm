@@ -1,2 +1,38 @@
-node_modules/
-.env
+# Build directories
+build/
+dist/
+
+# Third-party sources
+third_party/
+
+# Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Emscripten
+*.bc
+*.o
+*.a
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# OS specific
+Thumbs.db
+.DS_Store
+
+# IDE
+*.swp
+*.swo
+*~

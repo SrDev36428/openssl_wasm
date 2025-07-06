@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenSSL WebAssembly Crypto Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .version {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 OpenSSL WebAssembly Crypto Demo</h1>
+        
+        <div id="loading" class="loading">
+            <p>Loading WebAssembly module...</p>
+        </div>
+        
+        <div id="app" style="display: none;">
+            <div class="form-group">
+                <label for="plaintext">Plain Text:</label>
+                <textarea id="plaintext" placeholder="Enter text to encrypt...">Hello, WebAssembly with OpenSSL!</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" value="mySecretPassword123" placeholder="Enter encryption password">
+            </div>
+            
+            <div class="form-group">
+                <label for="salt">Salt:</label>
+                <input type="text" id="salt" value="randomSalt456" placeholder="Enter salt for key derivation">
+            </div>
+            
+            <div class="form-group">
+                <button id="encryptBtn">🔒 Encrypt</button>
+                <button id="decryptBtn">🔓 Decrypt</button>
+                <button id="clearBtn">🗑️ Clear All</button>
+            </div>
+            
+            <div class="form-group">
+                <label for="encrypted">Encrypted Data (Base64):</label>
+                <textarea id="encrypted" readonly placeholder="Encrypted data will appear here..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="decrypted">Decrypted Text:</label>
+                <textarea id="decrypted" readonly placeholder="Decrypted text will appear here..."></textarea>
+            </div>
+            
+            <div id="status"></div>
+            
+            <div class="version" id="version"></div>
+        </div>
+    </div>
+
+    <script>
+        let cryptoModule = null;
+        
+        // Utility functions
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+            setTimeout(() => {
+                statusDiv.innerHTML = '';
+            }, 3000);
+        }
+        
+        function stringToBase64(str) {
+            return btoa(String.fromCharCode(...new Uint8Array(new TextEncoder().encode(str))));
+        }
+        
+        function base64ToString(base64) {
+            return new TextDecoder().decode(new Uint8Array(atob(base64).split('').map(c => c.charCodeAt(0))));
+        }
+        
+        // Initialize the application
+        function initApp() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+            
+            // Show version
+            try {
+                const version = cryptoModule.getVersion();
+                document.getElementById('version').textContent = version;
+            } catch (e) {
+                console.warn('Could not get version:', e);
+            }
+            
+            // Set up event listeners
+            document.getElementById('encryptBtn').addEventListener('click', handleEncrypt);
+            document.getElementById('decryptBtn').addEventListener('click', handleDecrypt);
+            document.getElementById('clearBtn').addEventListener('click', handleClear);
+            
+            showStatus('WebAssembly module loaded successfully!', 'success');
+        }
+        
+        function handleEncrypt() {
+            try {
+                const plaintext = document.getElementById('plaintext').value;
+                const password = document.getElementById('password').value;
+                const salt = document.getElementById('salt').value;
+                
+                if (!plaintext.trim()) {
+                    showStatus('Please enter text to encrypt', 'error');
+                    return;
+                }
+                
+                if (!password.trim()) {
+                    showStatus('Please enter a password', 'error');
+                    return;
+                }
+                
+                if (!salt.trim()) {
+                    showStatus('Please enter a salt', 'error');
+                    return;
+                }
+                
+                const encrypted = cryptoModule.encrypt(plaintext, password, salt);
+                
+                if (encrypted) {
+                    const base64Encrypted = stringToBase64(encrypted);
+                    document.getElementById('encrypted').value = base64Encrypted;
+                    showStatus('Text encrypted successfully!', 'success');
+                } else {
+                    showStatus('Encryption failed', 'error');
+                }
+                
+            } catch (error) {
+                console.error('Encryption error:', error);
+                showStatus('Encryption failed: ' + error.message, 'error');
+            }
+        }
+        
+        function handleDecrypt() {
+            try {
+                const encryptedBase64 = document.getElementById('encrypted').value;
+                const password = document.getElementById('password').value;
+                const salt = document.getElementById('salt').value;
+                
+                if (!encryptedBase64.trim()) {
+                    showStatus('No encrypted data to decrypt', 'error');
+                    return;
+                }
+                
+                if (!password.trim()) {
+                    showStatus('Please enter a password', 'error');
+                    return;
+                }
+                
+                if (!salt.trim()) {
+                    showStatus('Please enter a salt', 'error');
+                    return;
+                }
+                
+                const encrypted = base64ToString(encryptedBase64);
+                const decrypted = cryptoModule.decrypt(encrypted, password, salt);
+                
+                if (decrypted) {
+                    document.getElementById('decrypted').value = decrypted;
+                    showStatus('Text decrypted successfully!', 'success');
+                } else {
+                    showStatus('Decryption failed - check password and salt', 'error');
+                }
+                
+            } catch (error) {
+                console.error('Decryption error:', error);
+                showStatus('Decryption failed: ' + error.message, 'error');
+            }
+        }
+        
+        function handleClear() {
+            document.getElementById('plaintext').value = '';
+            document.getElementById('encrypted').value = '';
+            document.getElementById('decrypted').value = '';
+            showStatus('All fields cleared', 'info');
+        }
+        
+        // Module loading
+        var Module = {
+            onRuntimeInitialized: function() {
+                cryptoModule = Module;
+                initApp();
+            },
+            onAbort: function(what) {
+                console.error('WebAssembly module aborted:', what);
+                showStatus('Failed to load WebAssembly module', 'error');
+            }
+        };
+    </script>
+    
+    {{{ SCRIPT }}}
+</body>
+</html>

@@ -1,26 +1,84 @@
-cmake_minimum_required(VERSION 3.8)
-project(dapware_crypto VERSION 0.1.0)
+cmake_minimum_required(VERSION 3.16)
+project(openssl_wasm_crypto VERSION 1.0.0)
 
-# Require Emscripten
+# Ensure we're using Emscripten
 if(NOT EMSCRIPTEN)
-  message(FATAL_ERROR "This project must be built with Emscripten")
+    message(FATAL_ERROR "This project must be built with Emscripten. Please use emcmake cmake ...")
 endif()
 
-# Set OpenSSL include and lib paths (adjust to your environment)
-set(OPENSSL_ROOT "path/to/openssl")
-include_directories(${OPENSSL_ROOT}/include)
-link_directories(${OPENSSL_ROOT}/lib)
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(SOURCES main.cpp)
+# Project directories
+set(OPENSSL_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/openssl")
+set(OPENSSL_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/openssl_build")
+set(OPENSSL_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/openssl_install")
 
-add_executable(${PROJECT_NAME} ${SOURCES})
+# Check if OpenSSL source exists
+if(NOT EXISTS "${OPENSSL_SOURCE_DIR}/Configure")
+    message(FATAL_ERROR "OpenSSL source not found at ${OPENSSL_SOURCE_DIR}. Please run the setup script first.")
+endif()
 
-target_link_libraries(${PROJECT_NAME} 
-  ssl
-  crypto
+# Build OpenSSL for WebAssembly
+include(ExternalProject)
+ExternalProject_Add(openssl_build
+    SOURCE_DIR ${OPENSSL_SOURCE_DIR}
+    BINARY_DIR ${OPENSSL_BUILD_DIR}
+    CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env
+        CC=${CMAKE_C_COMPILER}
+        CXX=${CMAKE_CXX_COMPILER}
+        AR=${CMAKE_AR}
+        RANLIB=${CMAKE_RANLIB}
+        ${OPENSSL_SOURCE_DIR}/Configure
+        linux-generic32
+        no-shared
+        no-dso
+        no-engine
+        no-unit-test
+        no-ui-console
+        --prefix=${OPENSSL_INSTALL_DIR}
+        --openssldir=${OPENSSL_INSTALL_DIR}
+    BUILD_COMMAND make -j4
+    INSTALL_COMMAND make install_sw
+    BUILD_BYPRODUCTS 
+        ${OPENSSL_INSTALL_DIR}/lib/libssl.a
+        ${OPENSSL_INSTALL_DIR}/lib/libcrypto.a
 )
 
-# Emscripten link flags without modularize
+# Create imported targets for OpenSSL libraries
+add_library(OpenSSL::SSL STATIC IMPORTED)
+add_library(OpenSSL::Crypto STATIC IMPORTED)
+
+set_target_properties(OpenSSL::SSL PROPERTIES
+    IMPORTED_LOCATION ${OPENSSL_INSTALL_DIR}/lib/libssl.a
+    INTERFACE_INCLUDE_DIRECTORIES ${OPENSSL_INSTALL_DIR}/include
+)
+
+set_target_properties(OpenSSL::Crypto PROPERTIES
+    IMPORTED_LOCATION ${OPENSSL_INSTALL_DIR}/lib/libcrypto.a
+    INTERFACE_INCLUDE_DIRECTORIES ${OPENSSL_INSTALL_DIR}/include
+)
+
+# Add dependencies
+add_dependencies(OpenSSL::SSL openssl_build)
+add_dependencies(OpenSSL::Crypto openssl_build)
+
+# Main executable
+add_executable(${PROJECT_NAME} src/main.cpp)
+
+# Link libraries
+target_link_libraries(${PROJECT_NAME} 
+    OpenSSL::SSL
+    OpenSSL::Crypto
+)
+
+# Emscripten-specific settings
 set_target_properties(${PROJECT_NAME} PROPERTIES
-  LINK_FLAGS "--bind -s WASM=1 -s ALLOW_MEMORY_GROWTH=1"
+    LINK_FLAGS "--bind -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] -s MODULARIZE=1 -s EXPORT_NAME='OpenSSLModule' --shell-file ${CMAKE_CURRENT_SOURCE_DIR}/template/shell.html"
+)
+
+# Set output names
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    OUTPUT_NAME "openssl_crypto"
 )
