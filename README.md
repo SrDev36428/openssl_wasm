@@ -21,8 +21,8 @@ A complete WebAssembly implementation of OpenSSL encryption/decryption using AES
 2. **Emscripten SDK**
    ```bash
    # Download and install Emscripten
-   git clone https://github.com/emscripten-core/emsdk.git
-   cd emsdk
+   git clone https://github.com/emscripten-core/emsdk.git C:\emsdk
+   cd C:\emsdk
    emsdk install latest
    emsdk activate latest
    ```
@@ -37,81 +37,79 @@ A complete WebAssembly implementation of OpenSSL encryption/decryption using AES
 
 ## 🛠️ Build Instructions
 
-### Step 1: Clone the Project
+### Quick Start (Recommended)
 
-```bash
-git clone <your-repo-url>
-cd openssl-wasm-crypto
-```
+1. **Clone the Project**
+   ```bash
+   git clone <your-repo-url>
+   cd openssl-wasm-crypto
+   ```
 
-### Step 2: Activate Emscripten
+2. **Setup OpenSSL Source**
+   ```bash
+   scripts\setup_openssl.bat
+   ```
 
-Open **Developer Command Prompt for VS** and activate Emscripten:
+3. **Build Everything (with automatic Emscripten activation)**
+   ```bash
+   # If emsdk is installed at C:\emsdk (default)
+   scripts\activate_and_build.bat
+   
+   # If emsdk is installed elsewhere
+   scripts\activate_and_build.bat "C:\path\to\your\emsdk"
+   ```
 
-```bash
-# Navigate to your emsdk directory
-cd path\to\emsdk
-emsdk activate latest
+4. **Test the Demo**
+   ```bash
+   scripts\serve.bat
+   ```
+   Then open http://localhost:8000 in your browser.
 
-# This sets up the environment variables
-```
+### Manual Build Process
 
-### Step 3: Setup OpenSSL Source
+If you prefer to activate Emscripten manually:
 
-```bash
-# Run the OpenSSL setup script
-scripts\setup_openssl.bat
-```
+1. **Open Developer Command Prompt for VS**
 
-This script will:
-- Download OpenSSL 1.1.1w source code
-- Extract it to `third_party/openssl/`
-- Verify the installation
+2. **Activate Emscripten**
+   ```bash
+   cd C:\emsdk
+   emsdk_env.bat
+   ```
 
-### Step 4: Build the Project
+3. **Setup OpenSSL** (if not done already)
+   ```bash
+   cd C:\path\to\your\project
+   scripts\setup_openssl.bat
+   ```
 
-```bash
-# Build everything with one command
-scripts\build.bat
-```
-
-The build process will:
-1. Configure OpenSSL for WebAssembly
-2. Compile OpenSSL static libraries
-3. Build the main WebAssembly module
-4. Generate the demo HTML page
-5. Copy all files to the `dist/` directory
-
-### Step 5: Test the Demo
-
-```bash
-# Start a local web server
-scripts\serve.bat
-```
-
-Then open http://localhost:8000 in your browser.
+4. **Build the Project**
+   ```bash
+   scripts\build.bat
+   ```
 
 ## 📁 Project Structure
 
 ```
 openssl-wasm-crypto/
 ├── src/
-│   └── main.cpp              # Main C++ source with crypto functions
+│   └── main.cpp                    # Main C++ source with crypto functions
 ├── template/
-│   └── shell.html            # HTML template for the demo
+│   └── shell.html                  # HTML template for the demo
 ├── scripts/
-│   ├── setup_openssl.bat     # OpenSSL download and setup
-│   ├── build.bat             # Complete build script
-│   └── serve.bat             # Local web server for testing
+│   ├── setup_openssl.bat           # OpenSSL download and setup
+│   ├── activate_and_build.bat      # Build with automatic Emscripten activation
+│   ├── build.bat                   # Build script (requires manual activation)
+│   └── serve.bat                   # Local web server for testing
 ├── third_party/
-│   └── openssl/              # OpenSSL source (created by setup script)
-├── build/                    # CMake build directory
-├── dist/                     # Final output files
-│   ├── index.html            # Demo page
-│   ├── openssl_crypto.js     # JavaScript glue code
-│   └── openssl_crypto.wasm   # WebAssembly binary
-├── CMakeLists.txt            # CMake configuration
-└── README.md                 # This file
+│   └── openssl/                    # OpenSSL source (created by setup script)
+├── build/                          # CMake build directory
+├── dist/                           # Final output files
+│   ├── index.html                  # Demo page
+│   ├── openssl_crypto.js           # JavaScript glue code
+│   └── openssl_crypto.wasm         # WebAssembly binary
+├── CMakeLists.txt                  # CMake configuration
+└── README.md                       # This file
 ```
 
 ## 🔧 Technical Details
@@ -172,8 +170,8 @@ OpenSSLModule().then(module => {
 ### Common Issues
 
 1. **"Emscripten not found"**
-   - Ensure Emscripten is activated: `emsdk activate latest`
-   - Use Developer Command Prompt for VS
+   - Use `activate_and_build.bat` instead of `build.bat`
+   - Or manually activate: `cd C:\emsdk && emsdk_env.bat`
 
 2. **"OpenSSL source not found"**
    - Run `scripts\setup_openssl.bat` first
@@ -181,15 +179,28 @@ OpenSSLModule().then(module => {
 
 3. **"CMake configuration failed"**
    - Ensure Visual Studio C++ tools are installed
-   - Try running from Developer Command Prompt
+   - Use Developer Command Prompt for VS
+   - Try the automatic activation script
 
 4. **"Build failed"**
    - Check that all prerequisites are installed
    - Ensure sufficient disk space (2GB+)
+   - Try building with single thread (script will retry automatically)
 
 5. **"WebAssembly module failed to load"**
    - Serve files from a web server (not file://)
    - Check browser console for detailed errors
+
+### Environment Verification
+
+To check if Emscripten is properly activated, run:
+```bash
+emcc --version
+echo %EMSCRIPTEN%
+echo %EMSDK%
+```
+
+You should see version information and paths to your emsdk installation.
 
 ### Build Verification
 
