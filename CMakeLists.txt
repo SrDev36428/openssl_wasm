@@ -37,6 +37,7 @@ ExternalProject_Add(openssl_build
         no-engine
         no-unit-test
         no-ui-console
+        no-tests
         --prefix=${OPENSSL_INSTALL_DIR}
         --openssldir=${OPENSSL_INSTALL_DIR}
     BUILD_COMMAND make -j4
@@ -44,33 +45,20 @@ ExternalProject_Add(openssl_build
     BUILD_BYPRODUCTS 
         ${OPENSSL_INSTALL_DIR}/lib/libssl.a
         ${OPENSSL_INSTALL_DIR}/lib/libcrypto.a
+        ${OPENSSL_INSTALL_DIR}/include/openssl/opensslconf.h
 )
 
-# Create imported targets for OpenSSL libraries
-add_library(OpenSSL::SSL STATIC IMPORTED)
-add_library(OpenSSL::Crypto STATIC IMPORTED)
-
-set_target_properties(OpenSSL::SSL PROPERTIES
-    IMPORTED_LOCATION ${OPENSSL_INSTALL_DIR}/lib/libssl.a
-    INTERFACE_INCLUDE_DIRECTORIES ${OPENSSL_INSTALL_DIR}/include
-)
-
-set_target_properties(OpenSSL::Crypto PROPERTIES
-    IMPORTED_LOCATION ${OPENSSL_INSTALL_DIR}/lib/libcrypto.a
-    INTERFACE_INCLUDE_DIRECTORIES ${OPENSSL_INSTALL_DIR}/include
-)
-
-# Add dependencies
-add_dependencies(OpenSSL::SSL openssl_build)
-add_dependencies(OpenSSL::Crypto openssl_build)
-
-# Main executable
+# Main executable - define it first
 add_executable(${PROJECT_NAME} src/main.cpp)
 
-# Link libraries
+# Add dependency on OpenSSL build
+add_dependencies(${PROJECT_NAME} openssl_build)
+
+# Set include directories and link libraries after the target is created
+target_include_directories(${PROJECT_NAME} PRIVATE ${OPENSSL_INSTALL_DIR}/include)
 target_link_libraries(${PROJECT_NAME} 
-    OpenSSL::SSL
-    OpenSSL::Crypto
+    ${OPENSSL_INSTALL_DIR}/lib/libssl.a
+    ${OPENSSL_INSTALL_DIR}/lib/libcrypto.a
 )
 
 # Emscripten-specific settings

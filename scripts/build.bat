@@ -44,7 +44,7 @@ mkdir "%DIST_DIR%"
 :: Configure with CMake
 echo Configuring with CMake...
 cd /d "%BUILD_DIR%"
-emcmake cmake .. -DCMAKE_BUILD_TYPE=Release
+emcmake cmake .. -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles"
 
 if %errorlevel% neq 0 (
     echo CMake configuration failed
@@ -54,6 +54,7 @@ if %errorlevel% neq 0 (
 
 :: Build the project
 echo Building project...
+echo This may take several minutes as OpenSSL is being compiled...
 emmake make -j4
 
 if %errorlevel% neq 0 (
@@ -64,20 +65,33 @@ if %errorlevel% neq 0 (
 
 :: Copy output files to dist directory
 echo Copying output files...
-copy "openssl_crypto.wasm" "%DIST_DIR%\" >nul
-copy "openssl_crypto.js" "%DIST_DIR%\" >nul
-copy "openssl_crypto.html" "%DIST_DIR%\index.html" >nul
+if exist "openssl_crypto.wasm" copy "openssl_crypto.wasm" "%DIST_DIR%\" >nul
+if exist "openssl_crypto.js" copy "openssl_crypto.js" "%DIST_DIR%\" >nul
+if exist "openssl_crypto.html" copy "openssl_crypto.html" "%DIST_DIR%\index.html" >nul
+
+:: Verify files were created
+if not exist "%DIST_DIR%\openssl_crypto.wasm" (
+    echo Error: WASM file was not created
+    echo Check build output above for errors
+    pause
+    exit /b 1
+)
+
+if not exist "%DIST_DIR%\openssl_crypto.js" (
+    echo Error: JS file was not created
+    echo Check build output above for errors
+    pause
+    exit /b 1
+)
 
 echo Build completed successfully!
 echo Output files are in: %DIST_DIR%
 echo.
-echo To test the demo:
-echo 1. Start a local web server in the dist directory
-echo 2. Open index.html in your browser
+echo Files created:
+dir "%DIST_DIR%" /b
 echo.
-echo Example using Python:
-echo   cd dist
-echo   python -m http.server 8000
-echo   Open http://localhost:8000 in your browser
+echo To test the demo:
+echo 1. Run: scripts\serve.bat
+echo 2. Open http://localhost:8000 in your browser
 echo.
 pause
